@@ -72,10 +72,10 @@ void print_ram(){
 	int pageIndex = 0;
 	int wordIndex = 0;
 	for(auto &currentPage : RAM){
-		for(auto word : currentPage){
-			std::cout << wordIndex++ << " : " << word << std::endl;
-		}
-		wordIndex = 0;
-		std::cout << "================= Page number " << pageIndex++ << "==================" << std::endl;
+        std::cout << "================= Page number " << pageIndex++ << "==================" << std::endl;
+        for(auto word : currentPage){
+            std::cout << wordIndex++ << " : " << word << std::endl;
+        }
+        wordIndex = 0;
 	}
 }
