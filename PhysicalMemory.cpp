@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <cstdio>
+#include <iostream> //TODO Delete
 
 typedef std::vector<word_t> page_t;
 
@@ -65,4 +66,16 @@ void PMrestore(uint64_t frameIndex, uint64_t restoredPageIndex) {
 
     RAM[frameIndex] = std::move(swapFile[restoredPageIndex]);
     swapFile.erase(restoredPageIndex);
+}
+
+void print_ram(){
+	int pageIndex = 0;
+	int wordIndex = 0;
+	for(auto &currentPage : RAM){
+		for(auto word : currentPage){
+			std::cout << wordIndex++ << " : " << word << std::endl;
+		}
+		wordIndex = 0;
+		std::cout << "================= Page number " << pageIndex++ << "==================" << std::endl;
+	}
 }
