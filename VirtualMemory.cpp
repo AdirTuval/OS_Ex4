@@ -78,16 +78,6 @@ uint64_t recTranslateAddress(uint64_t frame, uint64_t virtualAddress, uint64_t t
 
 uint64_t translateAddress(uint64_t virtualAddress){
     uint64_t targetPage = virtualAddress >> OFFSET_WIDTH;
-//	int noRootBits = (OFFSET_WIDTH * TABLES_DEPTH);
-//	uint64_t rootOffset = virtualAddress >> noRootBits;
-//	word_t firstFrame;
-//	PMread(ROOT_ADDR + rootOffset, &firstFrame);
-//	if(firstFrame == 0){
-//		firstFrame = (word_t)findFrame(ROOT_ADDR, targetPage);
-//		initFrame(firstFrame);
-//		PMwrite(ROOT_ADDR + rootOffset, firstFrame);
-//	}
-//	uint64_t currentVirtualAddress = virtualAddress & ((1LL << noRootBits) - 1);
     return recTranslateAddress(ROOT_ADDR, virtualAddress, targetPage, TABLES_DEPTH);
 }
 
