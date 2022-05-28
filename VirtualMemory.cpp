@@ -13,20 +13,20 @@
 #define DISTANCE 4
 using namespace std;
 uint64_t translateAddress(uint64_t virtualAddress);
-void dfs(uint64_t node, uint64_t candidates[3], uint64_t depth, uint64_t parentFrame, uint64_t targetPage, uint64_t pageIdx);
 bool isFrameEmptyTable(uint64_t node);
 uint64_t getDistance(uint64_t pageIdx, uint64_t targetPage);
-uint64_t findFrame(uint64_t parentFrame, uint64_t targetPage);
+uint64_t findFrame(uint64_t frameToAvoid, uint64_t targetPage);
 void initFrame(uint64_t frameAddress);
 typedef struct BestFrameCandidates {
     uint64_t maxFrameIndex = ROOT_ADDR;
     uint64_t emptyTableFrameIndex = ROOT_ADDR;
+    uint64_t emptyTableLinkRemovalAddress = ROOT_ADDR;
     uint64_t maxDistancePageIndex = ROOT_ADDR;
     uint64_t maxDistanceFrameIndex = ROOT_ADDR;
     uint64_t maxDistance = ROOT_ADDR;
     uint64_t linkRemovalAddress = ROOT_ADDR;
 } BestFrameCandidates;
-
+void dfs(uint64_t node, BestFrameCandidates &candidates, uint64_t depth, uint64_t frameToAvoid, uint64_t linkWithinParent, uint64_t targetPage, uint64_t pageIdx);
 void VMinitialize(){
     initFrame(0);
 }
@@ -78,40 +78,48 @@ uint64_t recTranslateAddress(uint64_t frame, uint64_t virtualAddress, uint64_t t
 
 uint64_t translateAddress(uint64_t virtualAddress){
     uint64_t targetPage = virtualAddress >> OFFSET_WIDTH;
-	int noRootBits = (OFFSET_WIDTH * TABLES_DEPTH);
-	uint64_t rootOffset = virtualAddress >> noRootBits;
-	word_t firstFrame;
-	PMread(ROOT_ADDR + rootOffset, &firstFrame);
-	if(firstFrame == 0){
-		firstFrame = (word_t)findFrame(ROOT_ADDR, targetPage);
-		initFrame(firstFrame);
-		PMwrite(ROOT_ADDR + rootOffset, firstFrame);
-	}
-	uint64_t currentVirtualAddress = virtualAddress & ((1LL << noRootBits) - 1);
-    return recTranslateAddress(firstFrame, currentVirtualAddress, targetPage, TABLES_DEPTH - 1);
+//	int noRootBits = (OFFSET_WIDTH * TABLES_DEPTH);
+//	uint64_t rootOffset = virtualAddress >> noRootBits;
+//	word_t firstFrame;
+//	PMread(ROOT_ADDR + rootOffset, &firstFrame);
+//	if(firstFrame == 0){
+//		firstFrame = (word_t)findFrame(ROOT_ADDR, targetPage);
+//		initFrame(firstFrame);
+//		PMwrite(ROOT_ADDR + rootOffset, firstFrame);
+//	}
+//	uint64_t currentVirtualAddress = virtualAddress & ((1LL << noRootBits) - 1);
+    return recTranslateAddress(ROOT_ADDR, virtualAddress, targetPage, TABLES_DEPTH);
 }
 
-uint64_t findFrame(uint64_t parentFrame, uint64_t targetPage){
-    BestFrameCandidates bfc;
-    dfs(ROOT_ADDR, bfc, TABLES_DEPTH, parentFrame, targetPage, 0);
+uint64_t findFrame(uint64_t frameToAvoid, uint64_t targetPage){
+    BestFrameCandidates candidates;
+    dfs(ROOT_ADDR, candidates, TABLES_DEPTH, frameToAvoid,0, targetPage, 0);
 
-    if(candidates[EMPTY_TABLE_INDEX] != ROOT_ADDR) {
-        return candidates[EMPTY_TABLE_INDEX];
-    }else if(candidates[MAX_USED_FRAME_INDEX] + 1 < NUM_FRAMES){
-        return candidates[MAX_USED_FRAME_INDEX] + 1;
+    if(candidates.emptyTableFrameIndex != ROOT_ADDR) {
+        PMwrite(candidates.emptyTableLinkRemovalAddress, 0);
+        return candidates.emptyTableFrameIndex;
+    }else if(candidates.maxFrameIndex + 1 < NUM_FRAMES){
+        return candidates.maxFrameIndex + 1;
     }else{
-        assert(candidates[MAX_DISTANCE_FRAME] != 0);
-        PMevict(candidates[MAX_DISTANCE_FRAME], candidates[MAX_DISTANCE_PAGE]);
-        return candidates[MAX_DISTANCE_FRAME];
+        assert(candidates.maxDistanceFrameIndex != 0);
+        PMevict(candidates.maxDistanceFrameIndex, candidates.maxDistancePageIndex);
+        PMwrite(candidates.linkRemovalAddress, 0);
+        return candidates.maxDistanceFrameIndex;
     }
 }
 
 
-void dfs(uint64_t node, BestFrameCandidates &candidates, uint64_t depth, uint64_t parentFrame, uint64_t targetPage, uint64_t pageIdx){
+void dfs(uint64_t node, BestFrameCandidates &candidates, uint64_t depth, uint64_t frameToAvoid, uint64_t linkWithinParent, uint64_t targetPage, uint64_t pageIdx){
+    if (candidates.emptyTableLinkRemovalAddress != ROOT_ADDR){
+        return;
+    }
+
     candidates.maxFrameIndex = max( candidates.maxFrameIndex, node);
     pageIdx = pageIdx << OFFSET_WIDTH;
-    if(candidates.emptyTableFrameIndex == ROOT_ADDR && parentFrame != node && isFrameEmptyTable(node) ) {
+    if(candidates.emptyTableFrameIndex == ROOT_ADDR && frameToAvoid != node && isFrameEmptyTable(node) ) {
+        assert(depth != 0);
         candidates.emptyTableFrameIndex = node;
+        candidates.emptyTableLinkRemovalAddress = linkWithinParent;
     }
     for(int i = 0; i < PAGE_SIZE; i++){
         word_t nextNode = ROOT_ADDR;
@@ -119,6 +127,7 @@ void dfs(uint64_t node, BestFrameCandidates &candidates, uint64_t depth, uint64_
         if(nextNode != ROOT_ADDR){
             if(depth == 1){
                 //next node is a page. calculate distance and continue.
+                candidates.maxFrameIndex = max(candidates.maxFrameIndex, (uint64_t)nextNode);
                 uint64_t nextNodePageId = pageIdx + i;
                 uint64_t currentDistance = getDistance(nextNodePageId, targetPage);
                 if(candidates.maxDistance < currentDistance){
@@ -128,7 +137,7 @@ void dfs(uint64_t node, BestFrameCandidates &candidates, uint64_t depth, uint64_
                     candidates.linkRemovalAddress = (node * PAGE_SIZE) + i;
                 }
             }else{
-                dfs(nextNode, candidates, depth - 1, parentFrame, targetPage, pageIdx + i);
+                dfs(nextNode, candidates, depth - 1, frameToAvoid,(node * PAGE_SIZE) + i,  targetPage, pageIdx + i);
             }
         }
      }

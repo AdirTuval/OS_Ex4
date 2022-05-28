@@ -68,11 +68,15 @@ void PMrestore(uint64_t frameIndex, uint64_t restoredPageIndex) {
     swapFile.erase(restoredPageIndex);
 }
 
-void print_ram(){
+void print_ram(int upuntilpage){
+    system("cls");
 	int pageIndex = 0;
 	int wordIndex = 0;
 	for(auto &currentPage : RAM){
-        std::cout << "================= Page number " << pageIndex++ << "==================" << std::endl;
+        if(pageIndex == upuntilpage){
+            return;
+        }
+        std::cout << "================= Frame number " << pageIndex++ << "==================" << std::endl;
         for(auto word : currentPage){
             std::cout << wordIndex++ << " : " << word << std::endl;
         }
