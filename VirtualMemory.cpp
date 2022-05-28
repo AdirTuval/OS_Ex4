@@ -18,6 +18,14 @@ bool isFrameEmptyTable(uint64_t node);
 uint64_t getDistance(uint64_t pageIdx, uint64_t targetPage);
 uint64_t findFrame(uint64_t parentFrame, uint64_t targetPage);
 void initFrame(uint64_t frameAddress);
+typedef struct BestFrameCandidates {
+    uint64_t maxFrameIndex = ROOT_ADDR;
+    uint64_t emptyTableFrameIndex = ROOT_ADDR;
+    uint64_t maxDistancePageIndex = ROOT_ADDR;
+    uint64_t maxDistanceFrameIndex = ROOT_ADDR;
+    uint64_t maxDistance = ROOT_ADDR;
+    uint64_t linkRemovalAddress = ROOT_ADDR;
+} BestFrameCandidates;
 
 void VMinitialize(){
     initFrame(0);
@@ -84,8 +92,8 @@ uint64_t translateAddress(uint64_t virtualAddress){
 }
 
 uint64_t findFrame(uint64_t parentFrame, uint64_t targetPage){
-    uint64_t candidates[5] = {ROOT_ADDR,ROOT_ADDR,ROOT_ADDR,ROOT_ADDR, ROOT_ADDR};
-    dfs(ROOT_ADDR, candidates, TABLES_DEPTH, parentFrame, targetPage, 0);
+    BestFrameCandidates bfc;
+    dfs(ROOT_ADDR, bfc, TABLES_DEPTH, parentFrame, targetPage, 0);
 
     if(candidates[EMPTY_TABLE_INDEX] != ROOT_ADDR) {
         return candidates[EMPTY_TABLE_INDEX];
@@ -99,32 +107,35 @@ uint64_t findFrame(uint64_t parentFrame, uint64_t targetPage){
 }
 
 
-void dfs(uint64_t node, uint64_t candidates[3], uint64_t depth, uint64_t parentFrame, uint64_t targetPage, uint64_t pageIdx){
-    candidates[MAX_USED_FRAME_INDEX] = max(candidates[MAX_USED_FRAME_INDEX], node);
-    if(depth == 0){
-        //depth is 0, so node is a page, it's ID is: pageIdx
-        uint64_t currentDistance = getDistance(pageIdx, targetPage);
-        if(candidates[DISTANCE] < currentDistance){
-            candidates[DISTANCE] = currentDistance;
-            candidates[MAX_DISTANCE_PAGE] = pageIdx;
-            candidates[MAX_DISTANCE_FRAME] = node;
-        }
-        return;
-    }
-    if(candidates[EMPTY_TABLE_INDEX] == ROOT_ADDR && parentFrame != node && isFrameEmptyTable(node) ) {
-       candidates[EMPTY_TABLE_INDEX] = node;
+void dfs(uint64_t node, BestFrameCandidates &candidates, uint64_t depth, uint64_t parentFrame, uint64_t targetPage, uint64_t pageIdx){
+    candidates.maxFrameIndex = max( candidates.maxFrameIndex, node);
+    pageIdx = pageIdx << OFFSET_WIDTH;
+    if(candidates.emptyTableFrameIndex == ROOT_ADDR && parentFrame != node && isFrameEmptyTable(node) ) {
+        candidates.emptyTableFrameIndex = node;
     }
     for(int i = 0; i < PAGE_SIZE; i++){
-        word_t nextNode;
+        word_t nextNode = ROOT_ADDR;
         PMread((node * PAGE_SIZE) + i, &nextNode);
         if(nextNode != ROOT_ADDR){
-            dfs(nextNode, candidates, depth - 1, parentFrame, targetPage, (pageIdx + i) << OFFSET_WIDTH);
+            if(depth == 1){
+                //next node is a page. calculate distance and continue.
+                uint64_t nextNodePageId = pageIdx + i;
+                uint64_t currentDistance = getDistance(nextNodePageId, targetPage);
+                if(candidates.maxDistance < currentDistance){
+                    candidates.maxDistance = currentDistance;
+                    candidates.maxDistancePageIndex = nextNodePageId;
+                    candidates.maxDistanceFrameIndex = nextNode;
+                    candidates.linkRemovalAddress = (node * PAGE_SIZE) + i;
+                }
+            }else{
+                dfs(nextNode, candidates, depth - 1, parentFrame, targetPage, pageIdx + i);
+            }
         }
      }
 }
 
 uint64_t getDistance(uint64_t pageIdx, uint64_t targetPage){
-    uint64_t  abs_p = max(pageIdx - targetPage ,targetPage - pageIdx);
+    uint64_t abs_p = max((int64_t)(pageIdx - targetPage) ,(int64_t)(targetPage - pageIdx));
     return min(NUM_PAGES - abs_p , abs_p);
 }
 
