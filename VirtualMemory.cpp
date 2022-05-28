@@ -38,9 +38,12 @@ void initFrame(uint64_t frameAddress){
 }
 
 int VMread(uint64_t virtualAddress, word_t* value){
+    if(virtualAddress >= VIRTUAL_MEMORY_SIZE){
+        return 0;
+    }
     uint64_t physicalAddress = translateAddress(virtualAddress);
     PMread(physicalAddress, value);
-	return 0;
+	return 1;
 }
 
 /* Writes a word to the given virtual address.
@@ -50,9 +53,12 @@ int VMread(uint64_t virtualAddress, word_t* value){
  * address for any reason)
  */
 int VMwrite(uint64_t virtualAddress, word_t value){
+    if(virtualAddress >= VIRTUAL_MEMORY_SIZE){
+        return 0;
+    }
 	uint64_t physicalAddress = translateAddress(virtualAddress);
     PMwrite(physicalAddress, value);
-	return 0;
+	return 1;
 }
 
 uint64_t recTranslateAddress(uint64_t frame, uint64_t virtualAddress, uint64_t targetPage, int depth){
